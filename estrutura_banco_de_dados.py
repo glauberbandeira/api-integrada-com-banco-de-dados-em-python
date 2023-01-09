@@ -5,7 +5,7 @@ from flask_sqlalchemy import SQLAlchemy
 app = Flask(__name__)
 
 # Criar uma instancia de SQLAlchemy
-app.config['SECRET_KEY'] = '123456'
+app.config['SECRET_KEY'] = 'FSD2323f#$!SAH'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///blog.db'
 
 db = SQLAlchemy(app)

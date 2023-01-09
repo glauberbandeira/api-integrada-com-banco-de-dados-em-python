@@ -1,5 +1,23 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, make_response
 from estrutura_banco_de_dados import Autor, Postagem, app, db
+import json
+import jwt
+from datetime import datetime, timedelta
+
+# Rota Login
+@app.route('/login')
+def login():
+    auth = request.authorization
+    if not auth or auth.username or not auth.password:
+        return  make_response('Login inválido', 401, {'WWW-Authenticate': 'Basic realm="Login obrigatório'})
+    usuario = Autor.query.filter_by(nome=auth.username).first()
+    if not usuario:
+        return make_response('Login inválido', 401, {'WWW-Authenticate': 'Basic realm="Login obrigatório'})
+    if auth.password == usuario.senha:
+        token = jwt.encode({'id_autor': usuario.id_autor, 'exp': datetime.utcnow(
+        ) + timedelta(minutes=30)}, app.config['SECRET_KEY'])
+        return jsonify({'token':token})
+    return  make_response('Login inválido', 401, {'WWW-Authenticate': 'Basic realm="Login obrigatório'})
 
 
 
@@ -17,8 +35,6 @@ def obter_postagens():
     return jsonify({'postagens': list_postagens})
 
 # Obter postagem por id - GET https://localhost:5000/postagem/1
-
-
 @app.route('/postagem/<int:id_postagem>', methods=['GET'])
 def obter_postagem_por_indice(id_postagem):
     postagem = Postagem.query.filter_by(id_postagem=id_postagem).first()
@@ -32,8 +48,6 @@ def obter_postagem_por_indice(id_postagem):
     return jsonify({'postagens': postagem_atual})
 
 # Criar uma nova postagem - POST https://localhost:5000/postagem
-
-
 @app.route('/postagem', methods=['POST'])
 def nova_postagem():
     nova_postagem = request.get_json()
@@ -46,8 +60,6 @@ def nova_postagem():
     return jsonify({'mensagem': 'Postagem criada com sucesso'})
 
 # Alterar uma postagem existente - PUT https://localhost:5000/postagem/1
-
-
 @app.route('/postagem/<int:id_postagem>', methods=['PUT'])
 def alterar_postagem(id_postagem):
     postagem_alterada = request.get_json()
@@ -65,8 +77,6 @@ def alterar_postagem(id_postagem):
     return jsonify({'mensagem': 'Postagem alterada com sucessso'})
 
 # Excluir uma postagem - DELETE - https://localhost:5000/postagem/1
-
-
 @app.route('/postagem/<int:id_postagem>', methods=['DELETE'])
 def excluir_postagem(id_postagem):
     postagem_a_ser_excluida = Postagem.query.filter_by(
