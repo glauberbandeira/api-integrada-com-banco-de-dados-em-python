@@ -3,27 +3,48 @@ from estrutura_banco_de_dados import Autor, Postagem, app, db
 import json
 import jwt
 from datetime import datetime, timedelta
+from functools import wraps
+
+def token_obrigatorio(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        # Verificar se um token foi enviado
+        if 'x-access-token' in request.headers:
+            token = request.headers['x-access-token']
+            if not token:
+                return jsonify({'mensagem': 'Token não foi incluído!'}, 401)
+            # Se temos um token, validar acesso consultado o BD
+            try:
+                resultado = jwt.decode(token, app.config['SECRET_KEY'])
+                autor = Autor.query.filter_by(
+                    id_autor=resultado['id_autor']).first()
+            except:
+                return jsonify ({'mensagem': 'Token é inválido'}, 401)
+            return f(autor,*args,**kwargs)
+        return decorated
 
 # Rota Login
 @app.route('/login')
 def login():
     auth = request.authorization
-    if not auth or auth.username or not auth.password:
-        return  make_response('Login inválido', 401, {'WWW-Authenticate': 'Basic realm="Login obrigatório'})
+    if not auth or not auth.username or not auth.password:
+        return make_response('Login inválido', 401, {'WWW-Authenticate': 'Basic realm="Login obrigatório"'})
     usuario = Autor.query.filter_by(nome=auth.username).first()
     if not usuario:
-        return make_response('Login inválido', 401, {'WWW-Authenticate': 'Basic realm="Login obrigatório'})
+        return make_response('Login inválido', 401, {'WWW-Authenticate': 'Basic realm="Login obrigatório"'})
     if auth.password == usuario.senha:
         token = jwt.encode({'id_autor': usuario.id_autor, 'exp': datetime.utcnow(
         ) + timedelta(minutes=30)}, app.config['SECRET_KEY'])
-        return jsonify({'token':token})
-    return  make_response('Login inválido', 401, {'WWW-Authenticate': 'Basic realm="Login obrigatório'})
+        return jsonify({'token': token})
+    return make_response('Login inválido', 401, {'WWW-Authenticate': 'Basic realm="Login obrigatório"'})
 
 
 
 # Rota padrão - GET https://localhost:5000
 @app.route('/')
-def obter_postagens():
+@token_obrigatorio
+def obter_postagens(autor):
     postagens = Postagem.query.all()
 
     list_postagens = []
@@ -36,7 +57,8 @@ def obter_postagens():
 
 # Obter postagem por id - GET https://localhost:5000/postagem/1
 @app.route('/postagem/<int:id_postagem>', methods=['GET'])
-def obter_postagem_por_indice(id_postagem):
+@token_obrigatorio
+def obter_postagem_por_indice(autor,id_postagem):
     postagem = Postagem.query.filter_by(id_postagem=id_postagem).first()
     postagem_atual = {}
     try:
@@ -49,7 +71,8 @@ def obter_postagem_por_indice(id_postagem):
 
 # Criar uma nova postagem - POST https://localhost:5000/postagem
 @app.route('/postagem', methods=['POST'])
-def nova_postagem():
+@token_obrigatorio
+def nova_postagem(autor):
     nova_postagem = request.get_json()
     postagem = Postagem(
         titulo=nova_postagem['titulo'], id_autor=nova_postagem['id_autor'])
@@ -61,7 +84,8 @@ def nova_postagem():
 
 # Alterar uma postagem existente - PUT https://localhost:5000/postagem/1
 @app.route('/postagem/<int:id_postagem>', methods=['PUT'])
-def alterar_postagem(id_postagem):
+@token_obrigatorio
+def alterar_postagem(autor,id_postagem):
     postagem_alterada = request.get_json()
     postagem = Postagem.query.filter_by(id_postagem=id_postagem).first()
     try:
@@ -78,7 +102,8 @@ def alterar_postagem(id_postagem):
 
 # Excluir uma postagem - DELETE - https://localhost:5000/postagem/1
 @app.route('/postagem/<int:id_postagem>', methods=['DELETE'])
-def excluir_postagem(id_postagem):
+@token_obrigatorio
+def excluir_postagem(autor,id_postagem):
     postagem_a_ser_excluida = Postagem.query.filter_by(
         id_postagem=id_postagem).first()
     if not postagem_a_ser_excluida:
@@ -91,7 +116,8 @@ def excluir_postagem(id_postagem):
 
 # API autores
 @app.route('/autores')
-def obter_autores():
+@token_obrigatorio
+def obter_autores(autor):
     autores = Autor.query.all()
     lista_de_autores = []
     for autor in autores:
@@ -102,11 +128,10 @@ def obter_autores():
         lista_de_autores.append(autor_atual)
 
     return jsonify({'autores': lista_de_autores})
-    
-
 
 @app.route('/autores/<int:id_autor>', methods=['GET'])
-def obter_autor_por_id(id_autor):
+@token_obrigatorio
+def obter_autor_por_id(autor,id_autor):
     autor = Autor.query.filter_by(id_autor=id_autor).first()
     if not autor:
         return jsonify(f'Autor não encontrado')
@@ -117,9 +142,9 @@ def obter_autor_por_id(id_autor):
 
     return jsonify(f'Você buscou pelo autor: {autor_atual}')
 
-
 @app.route('/autores', methods=['POST'])
-def novo_autor():
+@token_obrigatorio
+def novo_autor(autor):
     print('deu erro')
     novo_autor = request.get_json()
     autor = Autor(
@@ -130,9 +155,9 @@ def novo_autor():
 
     return jsonify({'mensagem': 'Usuario criado com sucessso'}, 200)
 
-
 @app.route('/autores/<int:id_autor>', methods=['PUT'])
-def alterar_autor(id_autor):
+@token_obrigatorio
+def alterar_autor(autor,id_autor):
     usuario_a_alterar = request.get_json()
     autor = Autor.query.filter_by(id_autor=id_autor).first()
     if not autor:
@@ -153,9 +178,9 @@ def alterar_autor(id_autor):
     db.session.commit()
     return jsonify({'mesagem': 'Usuario alterado com sucesso'})
 
-
 @app.route('/autores/<int:id_autor>', methods=['DELETE'])
-def excluir_autor(id_autor):
+@token_obrigatorio
+def excluir_autor(autor,id_autor):
     autor_existente = Autor.query.filter_by(id_autor=id_autor).first()
     if not autor_existente:
         return jsonify({'mensagem': 'O autor não foi encontrado!'})
@@ -163,7 +188,6 @@ def excluir_autor(id_autor):
     db.session.commit()
 
     return jsonify({'mensagem': 'O autor foi excluído com sucesso!'})
-
 
 if __name__ == '__main__':
     app.run(port=5000, host='localhost', debug=True)
